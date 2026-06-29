@@ -391,6 +391,18 @@ Update: `dotnet tool update --global Microsoft.PowerApps.CLI.Tool`
   - Re-imported solution; updated skill reference JSON and SKILL.md post-import notes
   - Verified both child flow references correct in designer (Get Error Message in Catch, Send Notification in Finally)
 
+### Session 7
+- Created `WeatherDemo` solution (v1.0.0.0) — cross-solution Mode C: two business flows calling helpers from `ErrorHandling`
+- **Weather-Copenhagen-Success** (GUID `0e06b1c7-37e6-4844-852d-4de89952bc33`)
+  - Try: HTTP GET to Open-Meteo (`/v1/forecast?latitude=55.6761&longitude=12.5683&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&timezone=Europe/Copenhagen`) → Parse JSON → Compose weather summary (time, temp °C, humidity %, wind km/h, weather code)
+  - Catch: calls Helper - Get Error Message (GUID `5ae8b3c2...`) via cross-solution GUID reference
+  - Finally: condition on Try status; false branch → Compose notification → Send Notification (EMAIL/ERROR) → Terminate Failed
+- **Weather-Copenhagen-Failure** (GUID `471b42df-a19c-4937-bb27-f123b7f61151`)
+  - Identical structure to Success flow; URL uses invalid hostname `api.open-meteo-invalid.com` to force a DNS/connection error
+  - A 404 HTTP response does NOT work — it produces `{"code":"NotFound","outputs":{"statusCode":404}}` with no `message` field, so the helper's XPath finds nothing. A network-level failure produces `{"error":{"message":"No such host..."}}` which XPath can extract.
+- Solution.xml lists only the two new flow GUIDs as `<RootComponent>` entries — no helper GUIDs (those are owned by `ErrorHandling`)
+- Pitfall: `<RootComponent id="...">` GUIDs must be **lowercase** — uppercase caused a false "not declared as root component" import error
+
 ---
 
 ## Known Limitations / Next Steps

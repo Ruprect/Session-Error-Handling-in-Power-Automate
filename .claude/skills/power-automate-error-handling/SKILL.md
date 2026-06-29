@@ -405,6 +405,8 @@ After a successful import, remind the user:
 - **GUIDs are stable**: Never change the helper flow GUIDs — re-importing with `--force-overwrite` updates rather than duplicates.
 - **`x-ms-dynamically-added: true`** is required on every trigger input property or the designer won't show inputs.
 - **Dropdown inputs**: Use `"x-ms-content-hint": "DROP_DOWN"` + `"enum": [...]` for option sets.
+- **`<RootComponent id="...">` GUIDs must be lowercase** in solution.xml. Uppercase GUIDs cause a false "component is not declared as a root component" import error even though the GUID appears correct visually.
+- **HTTP 4xx responses are not extractable by the XPath helper.** When an HTTP action receives a 4xx/5xx HTTP response, Power Automate stores the failure as `{"code":"NotFound","outputs":{"statusCode":404,"body":{...}}}` — there is no `error.message` field, so the helper's XPath (`//error/message/text()` and `//message/text()`) finds nothing. The helper only works on **network-level failures** (DNS errors, connection refused, timeouts) which produce `{"error":{"message":"No such host is known..."}}`. If you need to demonstrate the error handler with an HTTP failure, use an **invalid hostname** (e.g. `https://api.hostname-that-does-not-exist.com/...`) rather than a bad path or invalid query parameter.
 
 ### Respond to a PowerApp or flow — exact required format
 
