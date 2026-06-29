@@ -11,8 +11,8 @@ Error handling is critical for building robust and reliable Power Automate flows
 ### Presentation Materials
 
 Located in the `slides/` folder:
-- **PPCC25 Presentation.pdf** - Latest presentation from Power Platform Community Conference 2025
-- **Old presentations/** - Previous versions from EPPC25 (European Power Platform Conference 2025)
+- **EPPC 2026 Presentation.pdf** - Latest presentation from European Power Platform Conference 2026
+- **Old presentations/** - Previous versions from PPCC25 and EPPC25
 
 ### Power Platform Solution
 

@@ -1,0 +1,265 @@
+{
+  "properties": {
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": { "defaultValue": {}, "type": "SecureObject" }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Button",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "callerWorkflow": {
+                  "title": "callerWorkflow",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "string(workflow()) from the calling flow",
+                  "x-ms-summary": "callerWorkflow"
+                },
+                "messageService": {
+                  "title": "messageService",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Notification channel",
+                  "x-ms-summary": "messageService",
+                  "x-ms-content-hint": "DROP_DOWN",
+                  "enum": ["EMAIL", "TEAMS"]
+                },
+                "severity": {
+                  "title": "severity",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Notification severity level",
+                  "x-ms-summary": "severity",
+                  "x-ms-content-hint": "DROP_DOWN",
+                  "enum": ["INFO", "WARN", "ERROR"]
+                },
+                "errorObject": {
+                  "title": "errorObject",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Optional — JSON string from Helper - Get Error Message",
+                  "x-ms-summary": "errorObject"
+                },
+                "subject": {
+                  "title": "subject",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Optional — overrides the auto-generated subject line",
+                  "x-ms-summary": "subject"
+                },
+                "message": {
+                  "title": "message",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Optional — custom message text for Info/Warn notifications",
+                  "x-ms-summary": "message"
+                }
+              },
+              "required": ["callerWorkflow", "messageService", "severity"]
+            }
+          },
+          "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000001" }
+        }
+      },
+      "actions": {
+        "Try": {
+          "type": "Scope",
+          "actions": {
+            "Compose_-_Severity_Config": {
+              "type": "Compose",
+              "inputs": {
+                "icon":        "@{if(equals(toUpper(triggerBody()?['severity']), 'ERROR'), '🚨', if(equals(toUpper(triggerBody()?['severity']), 'WARN'), '⚠️', 'ℹ️'))}",
+                "label":       "@{if(equals(toUpper(triggerBody()?['severity']), 'ERROR'), 'Error', if(equals(toUpper(triggerBody()?['severity']), 'WARN'), 'Warning', 'Information'))}",
+                "headerColor": "@{if(equals(toUpper(triggerBody()?['severity']), 'ERROR'), '#dc3545', if(equals(toUpper(triggerBody()?['severity']), 'WARN'), '#e67e22', '#0d6efd'))}",
+                "accentBg":    "@{if(equals(toUpper(triggerBody()?['severity']), 'ERROR'), '#f8d7da', if(equals(toUpper(triggerBody()?['severity']), 'WARN'), '#fff3cd', '#cfe2ff'))}",
+                "accentColor": "@{if(equals(toUpper(triggerBody()?['severity']), 'ERROR'), '#721c24', if(equals(toUpper(triggerBody()?['severity']), 'WARN'), '#6d4c00', '#084298'))}",
+                "importance":  "@{if(equals(toUpper(triggerBody()?['severity']), 'ERROR'), 'High', if(equals(toUpper(triggerBody()?['severity']), 'WARN'), 'Normal', 'Low'))}",
+                "teamsColor":  "@{if(equals(toUpper(triggerBody()?['severity']), 'ERROR'), 'attention', if(equals(toUpper(triggerBody()?['severity']), 'WARN'), 'warning', 'accent'))}"
+              },
+              "runAfter": {},
+              "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000011" }
+            },
+            "Compose_-_Flow_Name": {
+              "type": "Compose",
+              "inputs": "@{json(triggerBody()?['callerWorkflow'])?['tags']?['flowDisplayName']}",
+              "runAfter": { "Compose_-_Severity_Config": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000012" }
+            },
+            "Compose_-_Flow_Link": {
+              "type": "Compose",
+              "inputs": "@{concat('https://make.powerautomate.com/environments/', json(triggerBody()?['callerWorkflow'])?['tags']?['environmentName'], '/flows/', json(triggerBody()?['callerWorkflow'])?['name'], '/runs/', json(triggerBody()?['callerWorkflow'])?['run']?['name'])}",
+              "runAfter": { "Compose_-_Flow_Name": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000013" }
+            },
+            "Compose_-_Resolved_Subject": {
+              "type": "Compose",
+              "inputs": "@{coalesce(triggerBody()?['subject'], concat(outputs('Compose_-_Severity_Config')?['icon'], ' ', outputs('Compose_-_Severity_Config')?['label'], ' — ', outputs('Compose_-_Flow_Name')))}",
+              "runAfter": { "Compose_-_Flow_Link": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000014" }
+            },
+            "Switch_-_Message_Service": {
+              "type": "Switch",
+              "expression": "@toUpper(triggerBody()?['messageService'])",
+              "cases": {
+                "Case_-_Email": {
+                  "case": "EMAIL",
+                  "actions": {
+                    "Compose_-_Email_HTML": {
+                      "type": "Compose",
+                      "inputs": "<center><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f4f4f4\"><tr><td align=\"center\" style=\"padding:20px\"><table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:white;border-top:5px solid @{outputs('Compose_-_Severity_Config')?['headerColor']};font-family:Arial,sans-serif\"><tr><td style=\"background:@{outputs('Compose_-_Severity_Config')?['headerColor']};color:white;padding:20px;text-align:center\"><h2 style=\"margin:0;font-size:20px\">@{outputs('Compose_-_Severity_Config')?['icon']} @{outputs('Compose_-_Severity_Config')?['label']}</h2><p style=\"margin:6px 0 0;opacity:.9;font-size:13px\">@{outputs('Compose_-_Flow_Name')}</p></td></tr><tr><td style=\"padding:24px\"><div style=\"background:@{outputs('Compose_-_Severity_Config')?['accentBg']};border-left:4px solid @{outputs('Compose_-_Severity_Config')?['headerColor']};padding:14px;border-radius:3px;margin-bottom:20px;color:@{outputs('Compose_-_Severity_Config')?['accentColor']}\"><p style=\"margin:0 0 6px 0\"><strong>Flow:</strong> @{outputs('Compose_-_Flow_Name')}</p><p style=\"margin:0 0 6px 0\"><strong>Action:</strong> @{coalesce(json(triggerBody()?['errorObject'])?['ActionName'], '—')}</p><p style=\"margin:0\"><strong>Message:</strong> @{replace(coalesce(json(triggerBody()?['errorObject'])?['ErrorMessage'], triggerBody()?['message'], '(no details)'), '\r\n', '<br/>')}</p></div><table style=\"width:100%;border-collapse:collapse;margin-bottom:20px\"><tr><th style=\"background:#f8f9fa;padding:9px 10px;text-align:left;border:1px solid #dee2e6;width:160px\">Property</th><th style=\"background:#f8f9fa;padding:9px 10px;text-align:left;border:1px solid #dee2e6\">Value</th></tr><tr><td style=\"padding:8px 10px;border:1px solid #dee2e6;vertical-align:top\"><strong>Severity</strong></td><td style=\"padding:8px 10px;border:1px solid #dee2e6\">@{outputs('Compose_-_Severity_Config')?['label']}</td></tr><tr style=\"background:#f8f9fa\"><td style=\"padding:8px 10px;border:1px solid #dee2e6;vertical-align:top\"><strong>Status</strong></td><td style=\"padding:8px 10px;border:1px solid #dee2e6\">@{coalesce(json(triggerBody()?['errorObject'])?['Status'], '—')}</td></tr><tr><td style=\"padding:8px 10px;border:1px solid #dee2e6;vertical-align:top\"><strong>Failed Action</strong></td><td style=\"padding:8px 10px;border:1px solid #dee2e6\">@{coalesce(json(triggerBody()?['errorObject'])?['ActionName'], '—')}</td></tr></table><p style=\"text-align:center;margin:20px 0 0\"><a href=\"@{outputs('Compose_-_Flow_Link')}\" style=\"background:#0078d4;color:white;padding:10px 22px;border-radius:4px;text-decoration:none;font-weight:bold;display:inline-block\">View Run in Power Automate</a></p></td></tr></table></td></tr></table></center>",
+                      "runAfter": {},
+                      "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000021" }
+                    },
+                    "Compose_-_PLACEHOLDER_Send_Email": {
+                      "type": "Compose",
+                      "inputs": "ADD YOUR SEND EMAIL ACTION HERE. Use: subject=outputs('Compose_-_Resolved_Subject'), body=outputs('Compose_-_Email_HTML'), importance=outputs('Compose_-_Severity_Config')?['importance']",
+                      "runAfter": { "Compose_-_Email_HTML": ["Succeeded"] },
+                      "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000022" }
+                    }
+                  }
+                },
+                "Case_-_Teams": {
+                  "case": "TEAMS",
+                  "actions": {
+                    "Compose_-_Teams_Adaptive_Card": {
+                      "type": "Compose",
+                      "inputs": {
+                        "type": "AdaptiveCard",
+                        "version": "1.5",
+                        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                        "body": [
+                          {
+                            "type": "Container",
+                            "style": "@{outputs('Compose_-_Severity_Config')?['teamsColor']}",
+                            "bleed": true,
+                            "items": [
+                              {
+                                "type": "ColumnSet",
+                                "columns": [
+                                  {
+                                    "type": "Column",
+                                    "width": "auto",
+                                    "verticalContentAlignment": "center",
+                                    "items": [{ "type": "TextBlock", "text": "@{outputs('Compose_-_Severity_Config')?['icon']}", "size": "extraLarge" }]
+                                  },
+                                  {
+                                    "type": "Column",
+                                    "width": "stretch",
+                                    "items": [
+                                      { "type": "TextBlock", "text": "@{outputs('Compose_-_Severity_Config')?['label']}", "weight": "bolder", "size": "large", "color": "light" },
+                                      { "type": "TextBlock", "text": "@{outputs('Compose_-_Flow_Name')}", "color": "light", "spacing": "none", "wrap": true }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "FactSet",
+                            "spacing": "medium",
+                            "facts": [
+                              { "title": "Flow", "value": "@{outputs('Compose_-_Flow_Name')}" },
+                              { "title": "Severity", "value": "@{outputs('Compose_-_Severity_Config')?['label']}" },
+                              { "title": "Failed Action", "value": "@{coalesce(json(triggerBody()?['errorObject'])?['ActionName'], '—')}" },
+                              { "title": "Status", "value": "@{coalesce(json(triggerBody()?['errorObject'])?['Status'], '—')}" }
+                            ]
+                          },
+                          {
+                            "type": "TextBlock",
+                            "text": "@{replace(coalesce(json(triggerBody()?['errorObject'])?['ErrorMessage'], triggerBody()?['message'], ''), '\r\n', '\n')}",
+                            "wrap": true,
+                            "spacing": "medium",
+                            "color": "attention",
+                            "isVisible": "@{not(empty(coalesce(json(triggerBody()?['errorObject'])?['ErrorMessage'], triggerBody()?['message'], '')))}"
+                          }
+                        ],
+                        "actions": [
+                          {
+                            "type": "Action.OpenUrl",
+                            "title": "View Run in Power Automate",
+                            "url": "@{outputs('Compose_-_Flow_Link')}"
+                          }
+                        ]
+                      },
+                      "runAfter": {},
+                      "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000031" }
+                    },
+                    "Compose_-_PLACEHOLDER_Post_to_Teams": {
+                      "type": "Compose",
+                      "inputs": "ADD YOUR POST TO TEAMS ACTION HERE. Use: adaptiveCard=outputs('Compose_-_Teams_Adaptive_Card'). Recommended action: 'Post adaptive card in a chat or channel' (Teams connector).",
+                      "runAfter": { "Compose_-_Teams_Adaptive_Card": ["Succeeded"] },
+                      "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000032" }
+                    }
+                  }
+                }
+              },
+              "default": { "actions": {} },
+              "runAfter": { "Compose_-_Resolved_Subject": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000020" }
+            }
+          },
+          "runAfter": {},
+          "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000010" }
+        },
+        "Catch": {
+          "type": "Scope",
+          "actions": {
+            "Compose_-_Catch_Error": {
+              "type": "Compose",
+              "inputs": "@result('Try')",
+              "runAfter": {},
+              "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000041" }
+            }
+          },
+          "runAfter": { "Try": ["Failed", "TimedOut"] },
+          "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000040" }
+        },
+        "Finally": {
+          "type": "Scope",
+          "actions": {
+            "Condition_-_Try_succeeded": {
+              "type": "If",
+              "expression": {
+                "and": [{ "equals": ["@actions('Try')['status']", "Succeeded"] }]
+              },
+              "actions": {
+                "Respond_to_a_PowerApp_or_flow_-_Success": {
+                  "type": "Response",
+                  "kind": "powerapp",
+                  "inputs": { "statusCode": 200 },
+                  "runAfter": {},
+                  "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000052" }
+                }
+              },
+              "else": {
+                "actions": {
+                  "Respond_to_a_PowerApp_or_flow_-_Failed": {
+                    "type": "Response",
+                    "kind": "powerapp",
+                    "inputs": { "statusCode": 200 },
+                    "runAfter": {},
+                    "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000053" }
+                  }
+                }
+              },
+              "runAfter": {},
+              "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000051" }
+            }
+          },
+          "runAfter": { "Catch": ["Succeeded", "Failed", "Skipped", "TimedOut"] },
+          "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000050" }
+        }
+      },
+      "outputs": {}
+    },
+    "templateName": ""
+  },
+  "schemaVersion": "1.0.0.0"
+}

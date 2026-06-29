@@ -1,0 +1,235 @@
+{
+  "properties": {
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": { "defaultValue": {}, "type": "SecureObject" }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Button",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "tryResults": {
+                  "title": "tryResults",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Serialized result('Try') array from the calling flow",
+                  "x-ms-summary": "tryResults"
+                },
+                "callerWorkflow": {
+                  "title": "callerWorkflow",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Serialized workflow() object from the calling flow — used to build FlowName and FlowLink",
+                  "x-ms-summary": "callerWorkflow"
+                }
+              },
+              "required": ["tryResults"]
+            }
+          },
+          "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000001" }
+        }
+      },
+      "actions": {
+        "Try": {
+          "type": "Scope",
+          "actions": {
+            "Filter_array_-_Remove_null_values": {
+              "type": "Query",
+              "inputs": {
+                "from": "@json(triggerBody()?['tryResults'])",
+                "where": "@not(equals(item(), null))"
+              },
+              "runAfter": {},
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000011" }
+            },
+            "Filter_Array_-_Get_failed_step": {
+              "type": "Query",
+              "inputs": {
+                "from": "@body('Filter_array_-_Remove_null_values')",
+                "where": "@or(equals(item()['status'], 'Failed'), and(equals(item()['status'], 'Failed'), equals(item()?['error/message'], null)))"
+              },
+              "runAfter": { "Filter_array_-_Remove_null_values": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000012" }
+            },
+            "Compose_-_Add_root_to_first_result_in_filter_array": {
+              "type": "Compose",
+              "inputs": { "Root": "@first(body('Filter_Array_-_Get_failed_step'))" },
+              "runAfter": { "Filter_Array_-_Get_failed_step": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000013" }
+            },
+            "Compose_-_Convert_to_XML": {
+              "type": "Compose",
+              "inputs": "@xml(outputs('Compose_-_Add_root_to_first_result_in_filter_array'))",
+              "runAfter": { "Compose_-_Add_root_to_first_result_in_filter_array": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000014" }
+            },
+            "Compose_-_Get_error_message_using_XPath": {
+              "type": "Compose",
+              "inputs": "@coalesce(xpath(outputs('Compose_-_Convert_to_XML'), '//error/message[not(preceding-sibling::message)]/text()'), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()'))",
+              "runAfter": { "Compose_-_Convert_to_XML": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000015" }
+            },
+            "Select_-_Get_Error_Messages": {
+              "type": "Select",
+              "inputs": {
+                "from": "@union(coalesce(xpath(outputs('Compose_-_Convert_to_XML'), '//error/message[not(preceding-sibling::message)]/text()'), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()'), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()')), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()'), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()'))",
+                "select": "@item()"
+              },
+              "runAfter": { "Compose_-_Get_error_message_using_XPath": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000016" }
+            },
+            "Compose_-_Get_validation_errors": {
+              "type": "Compose",
+              "inputs": "@coalesce(first(body('Filter_Array_-_Get_failed_step'))?['outputs']?['errors'], json('[]'))",
+              "runAfter": { "Select_-_Get_Error_Messages": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000017" }
+            },
+            "Select_-_Format_validation_errors": {
+              "type": "Select",
+              "inputs": {
+                "from": "@outputs('Compose_-_Get_validation_errors')",
+                "select": "@concat('Path: ', coalesce(item()?['path'], 'n/a'), ', SchemaId: ', coalesce(item()?['schemaId'], 'n/a'))"
+              },
+              "runAfter": { "Compose_-_Get_validation_errors": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000018" }
+            }
+          },
+          "runAfter": {},
+          "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000010" }
+        },
+        "Catch": {
+          "type": "Scope",
+          "actions": {
+            "Filter_Array_-_Catch_-_Get_failed_step": {
+              "type": "Query",
+              "inputs": {
+                "from": "@result('Try')",
+                "where": "@equals('Failed', item()['status'])"
+              },
+              "runAfter": {},
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000031" }
+            },
+            "Compose_-_Catch_-_Add_root_to_first_result_in_filter_array": {
+              "type": "Compose",
+              "inputs": { "Root": "@first(body('Filter_Array_-_Catch_-_Get_failed_step'))" },
+              "runAfter": { "Filter_Array_-_Catch_-_Get_failed_step": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000032" }
+            },
+            "Compose_-_Catch_-_Convert_to_XML": {
+              "type": "Compose",
+              "inputs": "@xml(outputs('Compose_-_Catch_-_Add_root_to_first_result_in_filter_array'))",
+              "runAfter": { "Compose_-_Catch_-_Add_root_to_first_result_in_filter_array": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000033" }
+            },
+            "Compose_-_Catch_-_Get_error_message_using_XPath": {
+              "type": "Compose",
+              "inputs": "@join(xpath(outputs('Compose_-_Catch_-_Convert_to_XML'), '//message/text()'), ' ')",
+              "runAfter": { "Compose_-_Catch_-_Convert_to_XML": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000034" }
+            },
+            "Select_-_Catch_-_Get_contents": {
+              "type": "Select",
+              "inputs": {
+                "from": "@xpath(outputs('Compose_-_Catch_-_Convert_to_XML'), '//content')",
+                "select": "@json(xml(string(item())))"
+              },
+              "runAfter": { "Compose_-_Catch_-_Get_error_message_using_XPath": ["Succeeded"] },
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000035" }
+            }
+          },
+          "runAfter": { "Try": ["Failed", "TimedOut"] },
+          "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000030" }
+        },
+        "Finally": {
+          "type": "Scope",
+          "actions": {
+            "Condition_-_Try_succeeded": {
+              "type": "If",
+              "expression": {
+                "and": [{ "equals": ["@actions('Try')['status']", "Succeeded"] }]
+              },
+              "actions": {
+                "Respond_to_a_PowerApp_or_flow": {
+                  "type": "Response",
+                  "kind": "powerapp",
+                  "inputs": {
+                    "statusCode": 200,
+                    "body": {
+                      "status":       "@{first(body('Filter_Array_-_Get_failed_step'))?['status']}",
+                      "actionname":   "@{first(body('Filter_Array_-_Get_failed_step'))?['name']}",
+                      "errormessage": "@{if(empty(body('Select_-_Format_validation_errors')), join(body('Select_-_Get_Error_Messages'), '\r\n'), concat(join(body('Select_-_Get_Error_Messages'), '\r\n'), '\r\n', join(body('Select_-_Format_validation_errors'), '\r\n')))}",
+                      "contents":     "@{first(body('Filter_Array_-_Get_failed_step'))}",
+                      "flowname":     "@{json(triggerBody()?['callerWorkflow'])?['tags']?['flowDisplayName']}",
+                      "flowlink":     "@{concat('https://make.powerautomate.com/environments/', json(triggerBody()?['callerWorkflow'])?['tags']?['environmentName'], '/flows/', json(triggerBody()?['callerWorkflow'])?['name'], '/runs/', json(triggerBody()?['callerWorkflow'])?['run']?['name'])}"
+                    },
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "status":       { "title": "Status",       "x-ms-dynamically-added": true, "type": "string" },
+                        "actionname":   { "title": "ActionName",   "x-ms-dynamically-added": true, "type": "string" },
+                        "errormessage": { "title": "ErrorMessage", "x-ms-dynamically-added": true, "type": "string" },
+                        "contents":     { "title": "Contents",     "x-ms-dynamically-added": true, "type": "string" },
+                        "flowname":     { "title": "FlowName",     "x-ms-dynamically-added": true, "type": "string" },
+                        "flowlink":     { "title": "FlowLink",     "x-ms-dynamically-added": true, "type": "string" }
+                      }
+                    }
+                  },
+                  "runAfter": {},
+                  "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000042" }
+                }
+              },
+              "else": {
+                "actions": {
+                  "Respond_to_a_PowerApp_or_flow_-_Fallback": {
+                    "type": "Response",
+                    "kind": "powerapp",
+                    "inputs": {
+                      "statusCode": 200,
+                      "body": {
+                        "status":       "@{first(xpath(outputs('Compose_-_Catch_-_Convert_to_XML'), '//status/text()'))}",
+                        "actionname":   "@{first(xpath(outputs('Compose_-_Catch_-_Convert_to_XML'), '//name/text()'))}",
+                        "errormessage": "@{outputs('Compose_-_Catch_-_Get_error_message_using_XPath')}",
+                        "contents":     "@{body('Select_-_Catch_-_Get_contents')}",
+                        "flowname":     "@{json(triggerBody()?['callerWorkflow'])?['tags']?['flowDisplayName']}",
+                        "flowlink":     "@{concat('https://make.powerautomate.com/environments/', json(triggerBody()?['callerWorkflow'])?['tags']?['environmentName'], '/flows/', json(triggerBody()?['callerWorkflow'])?['name'], '/runs/', json(triggerBody()?['callerWorkflow'])?['run']?['name'])}"
+                      },
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "status":       { "title": "Status",       "x-ms-dynamically-added": true, "type": "string" },
+                          "actionname":   { "title": "ActionName",   "x-ms-dynamically-added": true, "type": "string" },
+                          "errormessage": { "title": "ErrorMessage", "x-ms-dynamically-added": true, "type": "string" },
+                          "contents":     { "title": "Contents",     "x-ms-dynamically-added": true, "type": "string" },
+                          "flowname":     { "title": "FlowName",     "x-ms-dynamically-added": true, "type": "string" },
+                          "flowlink":     { "title": "FlowLink",     "x-ms-dynamically-added": true, "type": "string" }
+                        }
+                      }
+                    },
+                    "runAfter": {},
+                    "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000044" }
+                  }
+                }
+              },
+              "runAfter": {},
+              "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000041" }
+            }
+          },
+          "runAfter": {
+            "Catch": ["Succeeded", "Failed", "Skipped", "TimedOut"]
+          },
+          "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000040" }
+        }
+      },
+      "outputs": {}
+    },
+    "templateName": ""
+  },
+  "schemaVersion": "1.0.0.0"
+}

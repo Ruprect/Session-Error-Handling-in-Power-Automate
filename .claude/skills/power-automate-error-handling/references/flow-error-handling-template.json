@@ -1,0 +1,97 @@
+{
+  "properties": {
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": { "defaultValue": {}, "type": "SecureObject" }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Button",
+          "inputs": { "schema": {} },
+          "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000001" }
+        }
+      },
+      "actions": {
+        "Try": {
+          "type": "Scope",
+          "actions": {
+            "Placeholder_-_Add_your_business_logic_here": {
+              "type": "Compose",
+              "inputs": "Place your business logic inside this Try scope. Delete this placeholder. Any failure triggers the Catch scope.",
+              "runAfter": {},
+              "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000003" }
+            }
+          },
+          "runAfter": {},
+          "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000002" }
+        },
+        "Catch": {
+          "type": "Scope",
+          "actions": {
+            "Run_child_flow_-_Get_Error_Message": {
+              "type": "Workflow",
+              "inputs": {
+                "host": {
+                  "workflowReferenceName": "5ae8b3c2-f6d7-4891-b023-456789abcdef"
+                },
+                "body": {
+                  "tryResults": "@{string(result('Try'))}",
+                  "callerWorkflow": "@{string(workflow())}"
+                }
+              },
+              "runAfter": {},
+              "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000022" }
+            }
+          },
+          "runAfter": { "Try": ["Failed"] },
+          "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000004" }
+        },
+        "Finally": {
+          "type": "Scope",
+          "actions": {
+            "Condition:_Was_Try_successful": {
+              "type": "If",
+              "expression": "@equals(actions('Try')?['status'], 'Succeeded')",
+              "actions": {},
+              "else": {
+                "actions": {
+                  "Compose:_Notification_message": {
+                    "type": "Compose",
+                    "inputs": "@coalesce(body('Run_child_flow_-_Get_Error_Message'), json('{\"errormessage\":\"Error extraction failed - check flow run history\",\"actionname\":\"unknown\",\"status\":\"Failed\"}'))",
+                    "runAfter": {},
+                    "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000051" }
+                  },
+                  "Terminate:_Flow_failed": {
+                    "type": "Terminate",
+                    "inputs": {
+                      "runStatus": "Failed",
+                      "runError": {
+                        "code": "@{coalesce(body('Run_child_flow_-_Get_Error_Message')?['status'], '500')}",
+                        "message": "@{coalesce(body('Run_child_flow_-_Get_Error_Message')?['errormessage'], 'An error occurred. Check the flow run history for details.')}"
+                      }
+                    },
+                    "runAfter": { "Compose:_Notification_message": ["Succeeded"] },
+                    "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000052" }
+                  }
+                }
+              },
+              "runAfter": {},
+              "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000050" }
+            }
+          },
+          "runAfter": {
+            "Catch": ["Succeeded", "Failed", "Skipped"]
+          },
+          "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000015" }
+        }
+      },
+      "outputs": {}
+    },
+    "templateName": ""
+  },
+  "schemaVersion": "1.0.0.0"
+}

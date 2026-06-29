@@ -1,1 +1,8 @@
-CLAUDE.md
+.env.local
+.claude/settings.local.json
+
+# Presentation source files - too large for git; commit PDF exports instead
+*.pptx
+
+# AI-generated presentation notes - not for public repo
+presentation-notes.md
