@@ -389,6 +389,7 @@ Update: `dotnet tool update --global Microsoft.PowerApps.CLI.Tool`
   - Passes `messageService=EMAIL`, `severity=ERROR`, `errorObject=string(outputs('Compose:_Notification_message'))`
   - `Terminate:_Flow_failed` now runs after Send Notification with `["Succeeded", "Failed"]` — flow always terminates red even if notification errors
   - Re-imported solution; updated skill reference JSON and SKILL.md post-import notes
+  - Verified both child flow references correct in designer (Get Error Message in Catch, Send Notification in Finally)
 
 ---
 
@@ -397,6 +398,6 @@ Update: `dotnet tool update --global Microsoft.PowerApps.CLI.Tool`
 - **Wire up send actions:** In "Helper - Send Notification", replace the two placeholder Compose actions with real connector calls:
   - Email: Office 365 Outlook → Send an Email (V2). Use `subject=outputs('Compose_-_Resolved_Subject')`, `body=outputs('Compose_-_Email_HTML')`, `importance=outputs('Compose_-_Severity_Config')?['importance']`
   - Teams: Post adaptive card in a chat or channel. Use `outputs('Compose_-_Teams_Adaptive_Card')` as the card payload.
-- **Child flow wiring in designer:** The `workflowReferenceName` in the parent references children by GUID. If the designer shows a reference as broken, open the "Run a child flow" action and re-select the helper from the dropdown (applies to both Get Error Message in Catch and Send Notification in Finally).
+- **Child flow wiring in designer:** The `workflowReferenceName` in the parent references children by GUID. If the designer shows a reference as broken, open the "Run a child flow" action and re-select the helper from the dropdown (applies to both Get Error Message in Catch and Send Notification in Finally). *(Verified correct after Session 6 import.)*
 - **Add real business logic:** Replace `Placeholder_-_Add_your_business_logic_here` in the Try scope with actual actions.
 - **Child flow shown as standalone:** Power Automate may list helper flows as regular flows rather than subprocesses. This is cosmetic — child flow calls still work correctly.
