@@ -374,9 +374,9 @@ pac solution import --path $zipPath --activate-plugins --force-overwrite
 
 ### 2C-7: Post-import wiring note
 
-After import, open each new business flow in the designer → Catch scope → "Run a child flow"
-action. If the reference shows as broken, re-select **Helper - Get Error Message** from the
-dropdown — Power Automate will re-link it to the installed helper from the other solution.
+After import, open each new business flow in the designer. If any child flow action shows as broken, re-select the helper from the dropdown — Power Automate will re-link it to the installed helper from the other solution:
+- Catch scope → "Run a child flow - Get Error Message" → re-select **Helper - Get Error Message**
+- Finally scope (false branch) → "Run a child flow - Send Notification" → re-select **Helper - Send Notification**
 
 ---
 
@@ -384,11 +384,16 @@ dropdown — Power Automate will re-link it to the installed helper from the oth
 
 After a successful import, remind the user:
 
-1. **Wire up child flow reference**: Open "Error Handling Template" (or the new flow) in the designer → Catch scope → "Run a child flow" action → re-select **Helper - Get Error Message** from the dropdown if it shows as broken.
+1. **Wire up child flow references**: Open "Error Handling Template" (or the new flow) in the designer. If either child flow action shows as broken, re-select the helper from the dropdown:
+   - Catch scope → "Run a child flow - Get Error Message" → re-select **Helper - Get Error Message**
+   - Finally scope (false branch) → "Run a child flow - Send Notification" → re-select **Helper - Send Notification**
 
-2. **Replace placeholder send actions**: In **Helper - Send Notification**, the EMAIL and TEAMS cases each have a placeholder Compose action. Replace it with the real connector:
-   - EMAIL → Office 365 Outlook: Send an Email (V2), use `outputs('Compose_-_Resolved_Subject')` and `outputs('Compose_-_Email_HTML')`
-   - TEAMS → Post adaptive card in a chat or channel, use `outputs('Compose_-_Teams_Adaptive_Card')`
+2. **Replace the placeholder email action**: In **Helper - Send Notification** → Try scope → Switch → EMAIL case, replace `Compose_-_PLACEHOLDER_Send_Email` with a real connector action:
+   - Office 365 Outlook: Send an Email (V2)
+   - `Subject` = `outputs('Compose_-_Resolved_Subject')`
+   - `Body` = `outputs('Compose_-_Email_HTML')`
+   - `Importance` = `outputs('Compose_-_Severity_Config')?['importance']`
+   - For Teams: replace `Compose_-_PLACEHOLDER_Post_to_Teams` with "Post adaptive card in a chat or channel", card = `outputs('Compose_-_Teams_Adaptive_Card')`
 
 3. **Add business logic**: In the flow's Try scope, replace `Placeholder_-_Add_your_business_logic_here` with real actions.
 

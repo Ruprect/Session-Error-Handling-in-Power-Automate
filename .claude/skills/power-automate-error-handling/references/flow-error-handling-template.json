@@ -65,6 +65,22 @@
                     "runAfter": {},
                     "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000051" }
                   },
+                  "Run_child_flow_-_Send_Notification": {
+                    "type": "Workflow",
+                    "inputs": {
+                      "host": {
+                        "workflowReferenceName": "7cd4e5f6-a8b9-4c2d-b1e3-567890abcdef"
+                      },
+                      "body": {
+                        "callerWorkflow": "@{string(workflow())}",
+                        "messageService": "EMAIL",
+                        "severity": "ERROR",
+                        "errorObject": "@{string(outputs('Compose:_Notification_message'))}"
+                      }
+                    },
+                    "runAfter": { "Compose:_Notification_message": ["Succeeded"] },
+                    "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000053" }
+                  },
                   "Terminate:_Flow_failed": {
                     "type": "Terminate",
                     "inputs": {
@@ -74,7 +90,7 @@
                         "message": "@{coalesce(body('Run_child_flow_-_Get_Error_Message')?['errormessage'], 'An error occurred. Check the flow run history for details.')}"
                       }
                     },
-                    "runAfter": { "Compose:_Notification_message": ["Succeeded"] },
+                    "runAfter": { "Run_child_flow_-_Send_Notification": ["Succeeded", "Failed"] },
                     "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000052" }
                   }
                 }
