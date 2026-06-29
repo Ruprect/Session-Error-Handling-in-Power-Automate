@@ -82,11 +82,16 @@ Ask the user these questions **one at a time** (stop and wait for each answer be
 > After each name ask: "Add another flow, or done?"
 
 **Q5 — Confirm pac auth:**
-> Show the ready-to-run command using `ENVIRONMENT_ID` loaded from the env file:
+
+Run `pac auth list` and check whether the active profile's Environment Url matches `ENVIRONMENT_URL`
+from the env file (case-insensitive, trailing slash ignored). If it matches, tell the user they are
+already connected (e.g. "Already connected to Development — no login needed.") and skip the prompt.
+
+If not connected, show the ready-to-run command using `ENVIRONMENT_ID` from the env file:
 > `pac auth create --deviceCode --environment <ENVIRONMENT_ID>`
 >
 > If no env file was found, show the placeholder and ask the user to supply the environment ID.
-> Ask: "Are you authenticated to this environment? Run the command above if not."
+> Ask: "Are you authenticated to this environment? Run the command above if not, then confirm when ready."
 
 Record all answers before proceeding.
 
