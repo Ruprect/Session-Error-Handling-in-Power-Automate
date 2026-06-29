@@ -22,9 +22,9 @@ and **Helper - Send Notification** — plus an option to add custom flows.
 
 ### Pre-flight: Load environment config
 
-Before asking any questions, silently load defaults from the project directory:
+Before asking any questions, load defaults from the project directory:
 
-1. Look for `.env` in the working directory; if absent, fall back to `.env.example`.
+1. Check for env files in this priority order: `.env` → `.env.local` → `.env.example`. Use the first one found.
 2. Parse any line matching `KEY=value` (ignore blank lines and `#` comments).
 3. Store the following values as defaults (used to pre-fill prompts below):
    - `ENVIRONMENT_ID` → used in Q5 auth command
@@ -32,8 +32,9 @@ Before asking any questions, silently load defaults from the project directory:
    - `PUBLISHER_PREFIX` → default for Q2
    - `SOLUTION_UNIQUE_NAME` → default for Q3 (Mode A)
    - `SOLUTION_DISPLAY_NAME` → default for Q3 (Mode A)
+4. **Tell the user** which file was loaded, e.g.: "Loaded settings from `.env.local`." If a value is still a placeholder (e.g. contains `YOUR-` or `-HERE`), treat it as missing and note that the user should supply it.
 
-If neither file exists, proceed without defaults and ask the user to supply values manually.
+If no env file exists at all, tell the user and ask them to supply values manually.
 
 ---
 
