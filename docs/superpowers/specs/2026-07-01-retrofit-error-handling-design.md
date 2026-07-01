@@ -58,6 +58,10 @@ Documented in `references/retrofit-transformation.md`:
    Scope (platform restriction) — they stay at top level in original order.
    Everything else moves into a new `Try` scope.
 2. **Rewire runAfter.**
+   - Top-level `InitializeVariable` actions are re-chained sequentially in their
+     original order (first gets `runAfter: {}`, each subsequent one runs after the
+     previous `["Succeeded"]`) — this drops any dependency they had on a moved
+     action while keeping initialization order deterministic.
    - `Try` runs after the last `InitializeVariable` (`["Succeeded"]`), or
      `runAfter: {}` if the flow has none.
    - Moved actions keep their runAfter relationships with each other. A dependency
@@ -70,8 +74,16 @@ Documented in `references/retrofit-transformation.md`:
    - fresh `operationMetadataId` GUIDs for the newly added actions only
    Catch: `runAfter Try ["Failed", "TimedOut"]`. Finally:
    `runAfter Catch ["Succeeded", "Failed", "Skipped", "TimedOut"]`.
-4. **Skip rules.** Flows with an existing top-level `Try` scope: flagged, excluded by
-   default. Flows with no actions: skipped.
+4. **Skip rules.** Flagged and excluded by default (overridable only for the first
+   case):
+   - Flows with an existing top-level `Try` scope — already has error handling.
+   - Flows with ANY top-level action named `Try`, `Catch`, or `Finally` regardless
+     of type — appending the new scopes would collide on action names.
+   - Flows where any `InitializeVariable`'s `runAfter` references a
+     non-`InitializeVariable` action, or whose variable `value` expression
+     references a moved action's outputs — re-chaining would change semantics or
+     break at runtime. These need manual retrofitting.
+   - Flows with no actions: skipped outright.
 5. **Preserved untouched:** flow GUID (in-place update — no re-linking), trigger,
    `connectionReferences` object, every existing action's name and
    `operationMetadataId`. A `Response` action moving into Try is acceptable: if Try
@@ -89,7 +101,9 @@ No other files change. No changes to Modes A/B/C behavior.
 ## Testing
 
 Run Mode D against `Flowswithouterrorhandling` (contains one Draft flow,
-*Get Mock Data for Canvas App*, GUID `68d65bb2-9575-f111-ab0d-70a8a532f695`):
+*Get Mock Data for Canvas App*, GUID `68d65bb2-9575-f111-ab0d-70a8a532f695`).
+The fixture exists only in the Development environment, not the repo — verify it is
+still present before the test run (query Dataverse) and recreate it if not:
 
 1. Import succeeds; solution version bumped.
 2. Post-import export shows the flow's structure as: variables (if any) → Try
