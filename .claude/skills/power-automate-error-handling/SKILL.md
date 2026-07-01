@@ -570,6 +570,57 @@ re-select the helper from the dropdown — Power Automate will re-link it to the
 
 ---
 
+## Step 2D — Retrofit error handling onto existing flows
+
+Adds the Try-Catch-Finally pattern to flows that ALREADY EXIST in a target solution,
+in place. Flow GUIDs, triggers, and connection references are preserved — nothing
+needs re-linking after import.
+
+Read these files before transforming anything:
+- `references/retrofit-transformation.md` — skip rules, algorithm, validation script
+- `references/flow-error-handling-template.json` — source of the Catch/Finally scopes
+
+### 2D-1: Export and unzip the target solution
+
+Use Step 2B-1 and 2B-2 verbatim with the Mode D target solution name from Q3.
+Keep the export zip untouched — it is the rollback backup (restore = re-import it).
+
+### 2D-2: Discover helper GUIDs
+
+Use Step 2C-1 verbatim with the helper solution from Q4b (default `ErrorHandling`).
+Confirm the discovered GUIDs with the user before transforming.
+
+### 2D-3: List flows and let the user pick
+
+Parse the `<Workflow>` elements in `$exportDir\customizations.xml`. For each flow,
+load its JSON file and evaluate the skip rules from
+`references/retrofit-transformation.md`. Present the list with flags
+(`already-has-try`, `name-collision`, `entangled-initvar`, `empty`) and ask which
+flows to retrofit — default: all unflagged flows. Never transform a flagged flow;
+flagged flows need manual treatment.
+
+### 2D-4: Transform each selected flow
+
+Apply the algorithm in `references/retrofit-transformation.md` exactly, then run its
+validation script on every transformed file. Write back with `$utf8NoBom`, keeping
+the original file names.
+
+### 2D-5: Bump version, rezip, import
+
+Bump the solution version by one patch in `$exportDir\solution.xml` (as in Step
+2B-5) but do NOT add RootComponents — the flows already belong to the solution.
+Then rezip and import per Step 2B-7.
+
+### 2D-6: Post-import
+
+Step 3 items 1 (child flow references) and 4 (business logic already exists — skip)
+apply. Verify by exporting the solution again and re-running the validation script
+on each retrofitted flow, then test with a forced failure: temporarily add an HTTP
+action inside Try with an invalid hostname (see Critical rules — 4xx responses are
+NOT extractable; use a nonexistent hostname) and confirm the notification arrives.
+
+---
+
 ## Step 3 — Post-import
 
 After a successful import, remind the user:
