@@ -36,7 +36,7 @@
               "type": "Workflow",
               "inputs": {
                 "host": {
-                  "workflowReferenceName": "5ae8b3c2-f6d7-4891-b023-456789abcdef"
+                  "workflowReferenceName": "HELPER_GET_ERROR_GUID"
                 },
                 "body": {
                   "tryResults": "@{string(result('Try'))}",
@@ -47,7 +47,7 @@
               "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000022" }
             }
           },
-          "runAfter": { "Try": ["Failed"] },
+          "runAfter": { "Try": ["Failed", "TimedOut"] },
           "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000004" }
         },
         "Finally": {
@@ -69,7 +69,7 @@
                     "type": "Workflow",
                     "inputs": {
                       "host": {
-                        "workflowReferenceName": "7cd4e5f6-a8b9-4c2d-b1e3-567890abcdef"
+                        "workflowReferenceName": "HELPER_SEND_NOTIF_GUID"
                       },
                       "body": {
                         "callerWorkflow": "@{string(workflow())}",
@@ -100,7 +100,7 @@
             }
           },
           "runAfter": {
-            "Catch": ["Succeeded", "Failed", "Skipped"]
+            "Catch": ["Succeeded", "Failed", "Skipped", "TimedOut"]
           },
           "metadata": { "operationMetadataId": "a1b2c3d4-1111-2222-3333-000000000015" }
         }

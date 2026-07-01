@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 **Repository:** Session-Error-Handling-in-Power-Automate
-**Presenter:** Michael Nielsen (mni@abakion.com)
+**Presenter:** Michael Nielsen
 **Conference:** EPPC 2026
 **Topic:** Error handling patterns in Power Automate using the Try-Catch-Finally scope pattern
 
@@ -47,15 +47,19 @@ The repo accompanies a 94-slide EPPC 2026 presentation. The primary deliverable 
 
 **Unique name:** `ErrorHandling`
 **Display name:** Error Handling
-**Current version:** 1.0.4.0
+**Current version:** 1.0.5.0
 **Import command:** `pac solution import --path ErrorHandling_v2.zip --activate-plugins --force-overwrite`
 
 The solution zip is **not committed to this repo** — it is rebuilt from XML/JSON sources in a temp directory and imported via pac CLI. Rebuild instructions are below.
 
 ### Flows in the Solution
 
+> **Note (Session 8):** These GUIDs identify the flows currently deployed in the Development
+> environment. The skill no longer hardcodes them — each fresh deployment generates new GUIDs,
+> and cross-solution references discover the current GUIDs by exporting the helper solution.
+
 #### 1. Error Handling Template
-**GUID:** `3fc9a2b1-d4e5-4678-9012-3456789abcde`
+**GUID:** `f78e7c12-090a-4c01-a025-87ccf05fb639`
 **Purpose:** Instant/manual trigger template — drop your business logic in the Try scope.
 
 **Pattern:**
@@ -68,7 +72,7 @@ The Catch scope is intentionally minimal — one action:
 "Run_child_flow_-_Get_Error_Message": {
   "type": "Workflow",
   "inputs": {
-    "host": { "workflowReferenceName": "5ae8b3c2-f6d7-4891-b023-456789abcdef" },
+    "host": { "workflowReferenceName": "9563b2ec-9366-4bce-b554-0deff90939a9" },
     "body": {
       "tryResults": "@{string(result('Try'))}",
       "callerWorkflow": "@{string(workflow())}"
@@ -82,7 +86,7 @@ The Catch scope is intentionally minimal — one action:
 ---
 
 #### 2. Helper - Get Error Message
-**GUID:** `5ae8b3c2-f6d7-4891-b023-456789abcdef`
+**GUID:** `9563b2ec-9366-4bce-b554-0deff90939a9`
 **Purpose:** Reusable error extraction. Accepts the caller's Try results and full workflow context; returns a structured error object with FlowName and FlowLink.
 **Source:** Translated from user-provided Azure Logic App Bicep template (`helperGetErrorMessage`).
 
@@ -120,8 +124,8 @@ The Catch scope is intentionally minimal — one action:
 ---
 
 #### 3. Helper - Send Notification
-**GUID:** `7cd4e5f6-a8b9-4c2d-b1e3-567890abcdef`
-**Purpose:** Reusable notification dispatcher. Accepts caller context, channel, severity, and optional error/subject/message; builds channel-specific templates and responds. The actual send action is a placeholder — callers wire up their own Email/Teams connector.
+**GUID:** `4edf92ac-20bb-4868-8658-bb07a19bbbb2`
+**Purpose:** Reusable notification dispatcher. Accepts caller context, channel, severity, and optional error/subject/message; builds channel-specific templates and responds. The send actions are real connector calls (Office 365 Send an Email V2, Teams Post adaptive card) bound via connection references; the skill can alternatively emit placeholder Compose actions if the user opts out of a channel.
 **Source:** Translated from user-provided Azure Logic App Bicep template (`helperSendNotification`).
 
 **Trigger:** Manual (Button). All inputs require `"x-ms-dynamically-added": true`.
@@ -157,11 +161,15 @@ The Catch scope is intentionally minimal — one action:
 
 5. `Switch_-_Message_Service` on `toUpper(messageService)`:
    - **Case EMAIL:**
-     - `Compose_-_Email_HTML` — full HTML email with severity-colored header, error details table, Power Automate link button; error message sourced from `coalesce(json(errorObject)?['ErrorMessage'], triggerBody()?['message'], '(no details)')`
-     - `Compose_-_PLACEHOLDER_Send_Email` — instructions string: replace with Office 365 Send Email action using `subject=outputs('Compose_-_Resolved_Subject')`, `body=outputs('Compose_-_Email_HTML')`, `importance=outputs('Compose_-_Severity_Config')?['importance']`
+     - `Compose_-_Email_HTML` — full HTML email with severity-colored header, error details table, Power Automate link button; error message sourced from `coalesce(json(errorObject)?['errormessage'], triggerBody()?['message'], '(no details)')` (lowercase keys — matches the Get Error Message response body)
+     - `Send_an_email_V2` — Office 365 `SendEmailV2` via connection reference `{prefix}_office365_errorhandling`; `emailMessage/To|Subject|Body|Importance` from `{{NOTIFICATION_EMAIL_TO}}`, `Compose_-_Resolved_Subject`, `Compose_-_Email_HTML`, and the severity config
    - **Case TEAMS:**
-     - `Compose_-_Teams_Adaptive_Card` — Adaptive Card v1.5 JSON object (not a string) with `teamsColor` Container, severity icon + label header, FactSet with flow/severity/action/status, conditional TextBlock for error message, Action.OpenUrl to FlowLink
-     - `Compose_-_PLACEHOLDER_Post_to_Teams` — instructions string: replace with Teams Post Adaptive Card action using `outputs('Compose_-_Teams_Adaptive_Card')` as the card payload
+     - `Compose_-_Teams_Adaptive_Card` — Adaptive Card v1.5 JSON object (not a string) with `teamsColor` Container, severity icon + label header, FactSet with flow/severity/action/status, conditional TextBlock for error message (`isVisible` is a bare `@not(empty(...))` expression — no `@{}` interpolation, so it stays a boolean), Action.OpenUrl to FlowLink
+     - `Post_adaptive_card_in_a_chat_or_channel` — Teams `PostCardToConversation` via connection reference `{prefix}_teams_errorhandling`; `poster=Flow bot`, `location=Channel`, `body/recipient/groupId`, `body/recipient/channelId`, `body/messageBody=string(outputs('Compose_-_Teams_Adaptive_Card'))` (card passed as string)
+
+   The skill's Q6 pruning replaces either connector action with a placeholder Compose if the user opts out of that channel.
+
+> The deployed v1.0.5.0 flow matches this description (verified against a post-import export in Session 9). The email recipient and Teams target are baked in per deployment — see `NOTIFICATION_EMAIL`, `TEAMS_GROUP_ID`, and `TEAMS_CHANNEL_ID` in `.env.local` (not committed).
 
 **Catch scope:** `Compose_-_Catch_Error` stores `result('Try')`.
 
@@ -403,13 +411,39 @@ Update: `dotnet tool update --global Microsoft.PowerApps.CLI.Tool`
 - Solution.xml lists only the two new flow GUIDs as `<RootComponent>` entries — no helper GUIDs (those are owned by `ErrorHandling`)
 - Pitfall: `<RootComponent id="...">` GUIDs must be **lowercase** — uppercase caused a false "not declared as root component" import error
 
+### Session 8
+- Reworked the `power-automate-error-handling` skill:
+  - Fresh GUIDs generated per deployment (no more fixed GUIDs — deleting and re-creating flows with reused GUIDs caused import conflicts)
+  - "Helper - Send Notification" reference JSON now contains real Office 365 Send Email (V2) and Teams Post Adaptive Card actions with connection references; skill Q6–Q8 gather channel choice, email recipient, and Teams group/channel IDs
+  - Mode C discovers current helper GUIDs by exporting the installed helper solution and parsing customizations.xml
+- Reviewed the skill and produced fix TODOs in `docs/TODOs/` (case-mismatch bug, lowercase-GUID doc fix, per-channel pruning spec, Teams parameter verification, TimedOut runAfter, Mode B GUID discovery)
+
+### Session 9
+- Processed all 8 TODOs in `docs/TODOs/` (each renamed `DONE-` on completion):
+  - **TODO 01 (runtime bug):** `flow-send-notification.json` read `errorObject` with PascalCase keys (`?['ErrorMessage']` etc.) but "Helper - Get Error Message" returns lowercase keys — every lookup silently returned null, so notifications showed `(no details)`. Replaced all with lowercase (`?['errormessage']`, `?['actionname']`, `?['status']`).
+  - **TODO 02:** Lowercased the example GUIDs in `solution-xml.md`'s cross-solution `<RootComponent id>` / `<WorkflowId>` (JsonFileName keeps uppercase); added lowercase-GUID reminder comment.
+  - **TODO 03:** Replaced SKILL.md's thin "Q6 Neither" note with a full per-channel pruning spec — for each Q6 answer (Both/Email/Teams/Neither): which `connectionReferences` entries to delete, which connector action to swap for a placeholder Compose, which `<connectionreference>` entries customizations.xml needs, plus a final `{{` zero-match check before zipping.
+  - **TODO 04 (verify-first):** Verified the Teams action against the Microsoft Teams connector reference (learn.microsoft.com/connectors/teams) and the demo-solution export (`040 Send notification`). Fixed `flow-send-notification.json`: operationId `PostAdaptiveCardToConversation` → **`PostCardToConversation`**, parameter `body/messageDetails/adaptiveCardContent` → **`body/messageBody`** (card JSON as string), `runtimeSource` `invoker` → **`embedded`** on both connection reference entries. Sources noted in the DONE file.
+  - **TODO 05:** Template flow Catch/Finally `runAfter` now include `TimedOut`, matching both helpers.
+  - **TODO 06:** Added Q4b (which solution holds the helpers) for Mode B; 2B-3 generates lowercase GUID + separate `$newGuidUpper`; 2B-4 describes helper-GUID discovery for both same-solution and different-solution cases.
+  - **TODO 07:** CLAUDE.md updated for fresh-GUID policy and wired connectors (the Session 8 note above, Purpose line of flow #3, Known Limitations bullet).
+  - **TODO 08:** Simplified two redundant expressions in `flow-get-error-message.json` (duplicate union args in `Select_-_Get_Error_Messages`; tautological `or(X, and(X, Y))` where-clause in `Filter_Array_-_Get_failed_step`, now null-safe `@equals(item()?['status'], 'Failed')`).
+- Follow-up verification pass over all 8 TODOs caught and fixed three more issues:
+  - TODO 04's required SKILL.md rewrite had been skipped, leaving the Critical-rules Teams bullet asserting the old (wrong) parameter names — rewrote it to state the verified values as fact.
+  - **Adaptive card `isVisible` type bug:** `"@{not(empty(...))}"` interpolation yields the *string* `"True"`/`"False"`, not a boolean — a non-empty string is truthy, so the error TextBlock always rendered. Changed to bare `"@not(empty(...))"` which preserves the boolean type. Rule of thumb: inside a Compose'd JSON object, use `"@expr"` (no braces) when the consumer needs a non-string type.
+  - **SKILL.md Step 2A ordering hazard:** the deployment script wrote/zipped the send-notification JSON before the pruning section appears in the document — added an explicit "prune per Q6 first" pointer in the script comments.
+- All three flow reference JSONs re-validated as parseable JSON after the edits.
+- **Redeployed the solution as v1.0.5.0** (Mode A, fresh GUIDs, Q6=Both; recipient email and Teams group/channel from `.env.local`):
+  - New GUIDs: Template `f78e7c12-090a-4c01-a025-87ccf05fb639`, Get Error Message `9563b2ec-9366-4bce-b554-0deff90939a9`, Send Notification `4edf92ac-20bb-4868-8658-bb07a19bbbb2` (also recorded in `.env.local`)
+  - Post-import export verified every fix landed: lowercase `errorObject` keys, `PostCardToConversation` + `body/messageBody` + `runtimeSource: embedded`, `TimedOut` in template runAfter, simplified Get Error Message expressions, boolean `isVisible`, response bodies survived import
+  - Old flows (`3fc9a2b1…`, `5ae8b3c2…`, `7cd4e5f6…`) no longer exist in the environment — force-overwrite left no duplicates. The `WeatherDemo` flows were also found absent from the environment (solution removed sometime after Session 7), so no cross-solution references needed re-linking.
+  - Flow states after import: Get Error Message **Activated**; Template and Send Notification **Draft** until connection references are linked
+
 ---
 
 ## Known Limitations / Next Steps
 
-- **Wire up send actions:** In "Helper - Send Notification", replace the two placeholder Compose actions with real connector calls:
-  - Email: Office 365 Outlook → Send an Email (V2). Use `subject=outputs('Compose_-_Resolved_Subject')`, `body=outputs('Compose_-_Email_HTML')`, `importance=outputs('Compose_-_Severity_Config')?['importance']`
-  - Teams: Post adaptive card in a chat or channel. Use `outputs('Compose_-_Teams_Adaptive_Card')` as the card payload.
+- **Link connections and turn on flows:** After the Session 9 import, `rup_office365_errorhandling` and `rup_teams_errorhandling` need to be linked to real connections (solution → Connection References), then "Error Handling Template" and "Helper - Send Notification" turned on (both imported as Draft; "Helper - Get Error Message" activated automatically).
 - **Child flow wiring in designer:** The `workflowReferenceName` in the parent references children by GUID. If the designer shows a reference as broken, open the "Run a child flow" action and re-select the helper from the dropdown (applies to both Get Error Message in Catch and Send Notification in Finally). *(Verified correct after Session 6 import.)*
 - **Add real business logic:** Replace `Placeholder_-_Add_your_business_logic_here` in the Try scope with actual actions.
 - **Child flow shown as standalone:** Power Automate may list helper flows as regular flows rather than subprocesses. This is cosmetic — child flow calls still work correctly.

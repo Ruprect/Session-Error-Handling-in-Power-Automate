@@ -81,6 +81,11 @@ Ask the user these questions **one at a time** (stop and wait for each answer be
 >
 > After each name ask: "Add another flow, or done?"
 
+**Q4b — Helper solution** (Mode B only):
+> "Which solution contains the helper flows (`Helper - Get Error Message`,
+> `Helper - Send Notification`) that the new flow should call? (default: the same solution
+> you are adding the flow to; otherwise typically `ErrorHandling`)"
+
 **Q5 — Confirm pac auth:**
 
 Run `pac auth list` and check whether the active profile's Environment Url matches `ENVIRONMENT_URL`
@@ -92,6 +97,28 @@ If not connected, show the ready-to-run command using `ENVIRONMENT_ID` from the 
 >
 > If no env file was found, show the placeholder and ask the user to supply the environment ID.
 > Ask: "Are you authenticated to this environment? Run the command above if not, then confirm when ready."
+
+**Q6 — Notification connectors** (Mode A only):
+> "Which connectors should be wired up with real actions in Helper - Send Notification?
+>
+> (A) Email only — Office 365 Outlook 'Send an Email (V2)'
+> (B) Microsoft Teams only — 'Post adaptive card in a chat or channel'
+> (C) Both Email and Teams
+> (D) Neither — I'll add connector actions manually after import"
+
+**Q7 — Email recipient** (ask only if Q6 answer includes Email — A or C):
+> "What email address should error notification emails be sent to?
+> (e.g. `ops@example.com` — this is baked into the helper flow and can be changed later in the designer)"
+
+**Q8 — Teams channel** (ask only if Q6 answer includes Teams — B or C):
+> "What is the Teams **Group ID** and **Channel ID** for error notifications?
+>
+> To find these: in Teams, right-click the target channel → 'Get link to channel'. The URL contains:
+> `groupId=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` and `channel=19%3Axxxxxxxxx%40thread.tacv2`
+>
+> URL-decode the channel value (replace `%3A` → `:`, `%40` → `@`) to get the Channel ID.
+>
+> Enter both values now."
 
 Record all answers before proceeding.
 
@@ -105,60 +132,182 @@ Read these reference files before writing any files:
 - `references/flow-get-error-message.json` — helper child flow JSON
 - `references/flow-send-notification.json` — notification helper JSON
 
+### Generate new GUIDs for this deployment
+
+Always generate fresh GUIDs — **never reuse GUIDs from a previous deployment**. Reusing a GUID
+after deleting a flow causes import errors because the environment may still hold orphaned references.
+
+```powershell
+$guidTemplate  = [System.Guid]::NewGuid().ToString()   # Error Handling Template
+$guidGetError  = [System.Guid]::NewGuid().ToString()   # Helper - Get Error Message
+$guidSendNotif = [System.Guid]::NewGuid().ToString()   # Helper - Send Notification
+
+Write-Host "Generated GUIDs (save these if you plan cross-solution references):"
+Write-Host "  Error Handling Template : $guidTemplate"
+Write-Host "  Helper - Get Error Msg  : $guidGetError"
+Write-Host "  Helper - Send Notif     : $guidSendNotif"
+```
+
+Show these GUIDs to the user before proceeding — they need them if they later create a Mode C
+cross-solution that calls these helpers.
+
+### Compute connection reference names (Mode A only)
+
+```powershell
+$publisherPrefix = "<from Q2>"
+$crOffice365 = "${publisherPrefix}_office365_errorhandling"
+$crTeams     = "${publisherPrefix}_teams_errorhandling"
+```
+
 ### Directory structure to create
 
 ```
-<temp>\ErrorHandling\
+$env:TEMP\PA_ErrorHandling\<SolutionName>\
 ├── [Content_Types].xml
 ├── solution.xml
 ├── customizations.xml
 └── Workflows\
-    ├── ErrorHandlingTemplate-3FC9A2B1-D4E5-4678-9012-3456789ABCDE.json
-    ├── GetErrorMessage-5AE8B3C2-F6D7-4891-B023-456789ABCDEF.json
-    └── HelperSendNotification-7CD4E5F6-A8B9-4C2D-B1E3-567890ABCDEF.json
+    ├── ErrorHandlingTemplate-<GUID_TEMPLATE_UPPER>.json
+    ├── GetErrorMessage-<GUID_GET_ERROR_UPPER>.json
+    └── HelperSendNotification-<GUID_SEND_NOTIF_UPPER>.json
 ```
 
-Use `$env:TEMP\PA_ErrorHandling` as the temp directory.
-
-### Fixed GUIDs (never change these — they ensure re-import is idempotent)
-
-| Flow | GUID |
-|---|---|
-| Error Handling Template | `3fc9a2b1-d4e5-4678-9012-3456789abcde` |
-| Helper - Get Error Message | `5ae8b3c2-f6d7-4891-b023-456789abcdef` |
-| Helper - Send Notification | `7cd4e5f6-a8b9-4c2d-b1e3-567890abcdef` |
+Use `$env:TEMP\PA_ErrorHandling` as the base temp directory.
 
 ### PowerShell script pattern
 
 ```powershell
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-$dir = "$env:TEMP\PA_ErrorHandling\ErrorHandling"
+
+$solutionName = "<from Q3>"
+$dir   = "$env:TEMP\PA_ErrorHandling\$solutionName"
 $wfDir = "$dir\Workflows"
 New-Item -ItemType Directory -Force -Path $wfDir | Out-Null
 
-# Write each file — MUST use $utf8NoBom to avoid BOM that breaks pac importer
-[System.IO.File]::WriteAllText("$dir\[Content_Types].xml", $contentTypesXml, $utf8NoBom)
-[System.IO.File]::WriteAllText("$dir\solution.xml", $solutionXml, $utf8NoBom)
-[System.IO.File]::WriteAllText("$dir\customizations.xml", $customizationsXml, $utf8NoBom)
-[System.IO.File]::WriteAllText("$wfDir\ErrorHandlingTemplate-3FC9A2B1-D4E5-4678-9012-3456789ABCDE.json", $errorTemplateJson, $utf8NoBom)
-[System.IO.File]::WriteAllText("$wfDir\GetErrorMessage-5AE8B3C2-F6D7-4891-B023-456789ABCDEF.json", $getErrorMsgJson, $utf8NoBom)
-[System.IO.File]::WriteAllText("$wfDir\HelperSendNotification-7CD4E5F6-A8B9-4C2D-B1E3-567890ABCDEF.json", $sendNotifJson, $utf8NoBom)
+# --- Read reference JSON files ---
+# (paste the contents of each reference file into these variables)
+$errorTemplateJson = '<contents of flow-error-handling-template.json>'
+$getErrorMsgJson   = '<contents of flow-get-error-message.json>'
+$sendNotifJson     = '<contents of flow-send-notification.json>'
 
-# Zip
+# --- Token substitution: GUIDs referenced inside flow JSON ---
+# Each flow's own GUID is not embedded in the JSON itself — only cross-references are.
+# The Error Handling Template references Get Error Message and Send Notification by GUID
+# (in its Catch and Finally scopes). Update those references to the new GUIDs:
+$errorTemplateJson = $errorTemplateJson.Replace(
+    '"workflowReferenceName": "HELPER_GET_ERROR_GUID"',
+    "`"workflowReferenceName`": `"$guidGetError`""
+)
+$errorTemplateJson = $errorTemplateJson.Replace(
+    '"workflowReferenceName": "HELPER_SEND_NOTIF_GUID"',
+    "`"workflowReferenceName`": `"$guidSendNotif`""
+)
+
+# --- Token substitution: publisher prefix in connection reference names ---
+$sendNotifJson = $sendNotifJson.Replace("{{PUBLISHER_PREFIX}}", $publisherPrefix)
+
+# --- Prune to Q6 BEFORE substituting or writing ---
+# Apply the per-channel pruning from "Pruning the Send Notification flow to match Q6" (below),
+# then substitute only the tokens that remain in the pruned JSON.
+$sendNotifJson = $sendNotifJson.Replace("{{NOTIFICATION_EMAIL_TO}}", $notificationEmailTo)   # Q7
+$sendNotifJson = $sendNotifJson.Replace("{{TEAMS_GROUP_ID}}",        $teamsGroupId)           # Q8
+$sendNotifJson = $sendNotifJson.Replace("{{TEAMS_CHANNEL_ID}}",      $teamsChannelId)         # Q8
+
+# --- Compute file names (GUIDs must be UPPERCASE in file names) ---
+$templateFile  = "ErrorHandlingTemplate-$($guidTemplate.ToUpper()).json"
+$getErrorFile  = "GetErrorMessage-$($guidGetError.ToUpper()).json"
+$sendNotifFile = "HelperSendNotification-$($guidSendNotif.ToUpper()).json"
+
+# --- Write flow JSON files ---
+[System.IO.File]::WriteAllText("$wfDir\$templateFile",  $errorTemplateJson, $utf8NoBom)
+[System.IO.File]::WriteAllText("$wfDir\$getErrorFile",  $getErrorMsgJson,   $utf8NoBom)
+[System.IO.File]::WriteAllText("$wfDir\$sendNotifFile", $sendNotifJson,     $utf8NoBom)
+
+# --- Build XML files (substitute template tokens) ---
+# See references/solution-xml.md for full templates.
+# Key substitutions:
+#   {{GUID_TEMPLATE}}        → $guidTemplate   (lowercase)
+#   {{GUID_GET_ERROR}}       → $guidGetError   (lowercase)
+#   {{GUID_SEND_NOTIF}}      → $guidSendNotif  (lowercase)
+#   {{GUID_TEMPLATE_UPPER}}  → $guidTemplate.ToUpper()   (UPPERCASE for JsonFileName)
+#   {{GUID_GET_ERROR_UPPER}} → $guidGetError.ToUpper()
+#   {{GUID_SEND_NOTIF_UPPER}}→ $guidSendNotif.ToUpper()
+#   {{SOLUTION_NAME}}        → $solutionName
+#   {{SOLUTION_DISPLAY_NAME}}→ $solutionDisplayName
+#   {{PUBLISHER_NAME}}       → $publisherName
+#   {{PUBLISHER_PREFIX}}     → $publisherPrefix
+#   {{VERSION}}              → "1.0.0.0"
+
+# Include <connectionreferences> block in customizations.xml when Q6 != "Neither".
+# For Email-only: include only the office365 entry.
+# For Teams-only: include only the teams entry.
+# For Both: include both entries.
+# For Neither: omit the entire <connectionreferences> block.
+
+[System.IO.File]::WriteAllText("$dir\[Content_Types].xml", $contentTypesXml, $utf8NoBom)
+[System.IO.File]::WriteAllText("$dir\solution.xml",         $solutionXml,    $utf8NoBom)
+[System.IO.File]::WriteAllText("$dir\customizations.xml",   $customXml,      $utf8NoBom)
+
+# --- Zip ---
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$zipPath = "$env:TEMP\PA_ErrorHandling\ErrorHandling_v2.zip"
+$zipPath = "$env:TEMP\PA_ErrorHandling\${solutionName}.zip"
 if (Test-Path $zipPath) { [System.IO.File]::Delete($zipPath) }
 [System.IO.Compression.ZipFile]::CreateFromDirectory($dir, $zipPath)
 
-# Import
+# --- Import ---
 pac solution import --path $zipPath --activate-plugins --force-overwrite
 ```
 
-**Substitute** the user's answers from Q2 and Q3 into solution.xml:
-- `<UniqueName>` and `<LocalizedNames>` ← solution name / display name from Q3
-- `<Publisher><UniqueName>` ← publisher unique name from Q2
-- `<CustomizationPrefix>` ← publisher prefix from Q2
-- Update `<CustomizationOptionValuePrefix>` only if the user provides a custom value; otherwise leave the default `91517`
+### Pruning the Send Notification flow to match Q6
+
+The reference file `flow-send-notification.json` ships with BOTH connectors wired. Before writing
+the file, prune it so it matches the Q6 answer. The rule: every entry in the flow JSON's top-level
+`connectionReferences` object MUST have a matching `<connectionreference>` element in
+customizations.xml, and no `{{...}}` tokens may remain in any written file.
+
+**Q6 = Both (C):** Use the reference file as-is. Substitute all tokens
+(`{{PUBLISHER_PREFIX}}`, `{{NOTIFICATION_EMAIL_TO}}`, `{{TEAMS_GROUP_ID}}`, `{{TEAMS_CHANNEL_ID}}`).
+Include both `<connectionreference>` entries in customizations.xml.
+
+**Q6 = Email only (A):**
+1. In the flow JSON's `connectionReferences` object, DELETE the
+   `{{PUBLISHER_PREFIX}}_teams_errorhandling` entry (keep the office365 entry).
+2. In the TEAMS switch case, REPLACE the entire `Post_adaptive_card_in_a_chat_or_channel` action with:
+   ```json
+   "Compose_-_PLACEHOLDER_Post_to_Teams": {
+     "type": "Compose",
+     "inputs": "ADD YOUR POST TO TEAMS ACTION HERE. Use: adaptiveCard=outputs('Compose_-_Teams_Adaptive_Card'). Recommended action: 'Post adaptive card in a chat or channel' (Teams connector).",
+     "runAfter": { "Compose_-_Teams_Adaptive_Card": ["Succeeded"] },
+     "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000032" }
+   }
+   ```
+3. Substitute `{{PUBLISHER_PREFIX}}` and `{{NOTIFICATION_EMAIL_TO}}`.
+4. In customizations.xml, include ONLY the office365 `<connectionreference>` entry.
+
+**Q6 = Teams only (B):**
+1. In the flow JSON's `connectionReferences` object, DELETE the
+   `{{PUBLISHER_PREFIX}}_office365_errorhandling` entry (keep the teams entry).
+2. In the EMAIL switch case, REPLACE the entire `Send_an_email_V2` action with:
+   ```json
+   "Compose_-_PLACEHOLDER_Send_Email": {
+     "type": "Compose",
+     "inputs": "ADD YOUR SEND EMAIL ACTION HERE. Use: subject=outputs('Compose_-_Resolved_Subject'), body=outputs('Compose_-_Email_HTML'), importance=outputs('Compose_-_Severity_Config')?['importance']",
+     "runAfter": { "Compose_-_Email_HTML": ["Succeeded"] },
+     "metadata": { "operationMetadataId": "c1c1c1c1-0001-0001-0001-000000000022" }
+   }
+   ```
+3. Substitute `{{PUBLISHER_PREFIX}}`, `{{TEAMS_GROUP_ID}}`, `{{TEAMS_CHANNEL_ID}}`.
+4. In customizations.xml, include ONLY the teams `<connectionreference>` entry.
+
+**Q6 = Neither (D):**
+1. Set the flow JSON's top-level `connectionReferences` to an empty object: `"connectionReferences": {},`
+2. Apply BOTH action replacements from the Email-only and Teams-only cases above
+   (both connector actions become placeholder Compose actions).
+3. Substitute `{{PUBLISHER_PREFIX}}` if it still appears anywhere; no other tokens should remain.
+4. In customizations.xml, OMIT the `<connectionreferences>` block entirely.
+
+**Final check for every Q6 choice:** search all files about to be zipped for the substring `{{` —
+there must be zero matches before zipping.
 
 ---
 
@@ -195,7 +344,9 @@ Inspect the unpacked files to confirm the Workflows folder and existing flow cou
 ### 2B-3: Generate a GUID for each new flow
 
 ```powershell
-$newGuid = [System.Guid]::NewGuid().ToString().ToUpper()
+# Lowercase for solution.xml/customizations.xml; uppercase ONLY in the JSON file name
+$newGuid      = [System.Guid]::NewGuid().ToString()
+$newGuidUpper = $newGuid.ToUpper()
 Write-Host $newGuid
 ```
 
@@ -203,6 +354,14 @@ Write-Host $newGuid
 
 Based on `references/flow-error-handling-template.json`:
 - Generate fresh `operationMetadataId` GUIDs for every action (avoids collisions)
+- Update the `workflowReferenceName` values inside the Catch and Finally scopes to the current
+  GUIDs of the installed helper flows. Discover them from the helper solution named in Q4b:
+  - If Q4b = the target solution itself: parse the ALREADY-EXPORTED customizations.xml in
+    `$exportDir` — find the `<Workflow>` elements whose `Name` contains "Get Error" and
+    "Send Notification" and take their `WorkflowId` values (strip the braces).
+  - If Q4b = a different solution: export THAT solution separately and parse its
+    customizations.xml the same way — use the exact export-and-parse script from Step 2C-1.
+  Confirm the discovered GUIDs with the user before writing any files.
 - File name: `<PascalCaseFlowName>-<GUID-UPPERCASE>.json`
 
 ```powershell
@@ -218,7 +377,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
 Read the unpacked solution.xml, then add one `<RootComponent>` inside `<RootComponents>`:
 ```xml
-<RootComponent type="29" id="{<NEW-GUID-UPPERCASE>}" behavior="0" />
+<RootComponent type="29" id="{<NEW-GUID-LOWERCASE>}" behavior="0" />
 ```
 Bump `<Version>` by one patch (e.g. `1.0.4.0` → `1.0.5.0`).
 Write back with `$utf8NoBom`.
@@ -272,7 +431,7 @@ pac solution import --path $importZip --activate-plugins --force-overwrite
 This mode creates a **new, independent solution** whose business flows call the helper flows
 (`Helper - Get Error Message`, `Helper - Send Notification`) that are owned by a different solution
 (typically `ErrorHandling`). The helper flows are **not** included in the new solution — they are
-referenced only by their stable GUIDs.
+referenced only by their current GUIDs.
 
 **Prerequisite:** The helper solution must already be imported in the target environment before
 importing the new solution, otherwise the child flow references will be broken.
@@ -281,34 +440,45 @@ Read these reference files:
 - `references/solution-xml.md` — for the cross-solution solution.xml pattern
 - `references/flow-error-handling-template.json` — base template for the new business flows
 
-### How cross-solution child flow references work
+### 2C-1: Discover the helper flow GUIDs from the installed solution
 
-The calling flow's JSON references helpers by GUID inside the Catch scope:
-```json
-"Run_child_flow_-_Get_Error_Message": {
-  "type": "Workflow",
-  "inputs": {
-    "host": { "workflowReferenceName": "5ae8b3c2-f6d7-4891-b023-456789abcdef" },
-    "body": {
-      "tryResults": "@{string(result('Try'))}",
-      "callerWorkflow": "@{string(workflow())}"
-    }
-  }
-}
+**Never assume or hardcode the helper flow GUIDs.** GUIDs change each time the helper solution is
+deployed from scratch (as of the current SKILL design). Always discover the current GUIDs by
+exporting the installed helper solution:
+
+```powershell
+$helperSolutionName = "<from Q3, e.g. ErrorHandling>"
+$helperExportZip = "$env:TEMP\PA_ErrorHandling\helper_export.zip"
+$helperExportDir = "$env:TEMP\PA_ErrorHandling\helper_inspect"
+
+pac solution export --name $helperSolutionName --path $helperExportZip --overwrite
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+if (Test-Path $helperExportDir) { Remove-Item "$helperExportDir\*" -Recurse -Force }
+else { New-Item -ItemType Directory -Force -Path $helperExportDir | Out-Null }
+[System.IO.Compression.ZipFile]::ExtractToDirectory($helperExportZip, $helperExportDir)
+
+# Parse customizations.xml to find helper flow GUIDs by name
+[xml]$helperCustomXml = Get-Content "$helperExportDir\customizations.xml"
+$flows = $helperCustomXml.ImportExportXml.Workflows.Workflow
+
+$guidGetError  = ($flows | Where-Object { $_.Name -like "*Get Error*" }).WorkflowId -replace '[{}]', ''
+$guidSendNotif = ($flows | Where-Object { $_.Name -like "*Send Notification*" }).WorkflowId -replace '[{}]', ''
+
+Write-Host "Helper - Get Error Message  GUID: $guidGetError"
+Write-Host "Helper - Send Notification  GUID: $guidSendNotif"
 ```
 
-Power Automate resolves this GUID at runtime regardless of which solution owns the target flow.
-The new solution does **not** need to redeclare the helpers as its own RootComponents — it only
-registers the business flows it owns.
+Confirm with the user that the discovered GUIDs match expected flows before continuing.
 
-### 2C-1: Generate a GUID for each new business flow
+### 2C-2: Generate a GUID for each new business flow
 
 ```powershell
 $newGuid = [System.Guid]::NewGuid().ToString()
 Write-Host $newGuid
 ```
 
-### 2C-2: Create the new solution directory
+### 2C-3: Create the new solution directory
 
 ```
 $env:TEMP\PA_ErrorHandling\<NewSolutionName>\
@@ -319,7 +489,7 @@ $env:TEMP\PA_ErrorHandling\<NewSolutionName>\
     └── <FlowName>-<GUID-UPPERCASE>.json   ← one per business flow
 ```
 
-### 2C-3: solution.xml for the new solution
+### 2C-4: solution.xml for the new solution
 
 Same structure as the standard template in `references/solution-xml.md`, but:
 - Use the **new** solution unique name and display name
@@ -328,28 +498,38 @@ Same structure as the standard template in `references/solution-xml.md`, but:
 
 ```xml
 <RootComponents>
-  <RootComponent type="29" id="{<NEW-FLOW-GUID-UPPERCASE>}" behavior="0" />
+  <RootComponent type="29" id="{<NEW-FLOW-GUID-LOWERCASE>}" behavior="0" />
   <!-- one entry per new business flow; no helper entries here -->
 </RootComponents>
 ```
 
-### 2C-4: customizations.xml for the new solution
+### 2C-5: customizations.xml for the new solution
 
 Only include `<Workflow>` entries for the new business flows (`<Subprocess>0</Subprocess>`).
 No entries for the helpers.
 
-### 2C-5: Flow JSON files
+### 2C-6: Flow JSON files
 
-Use `references/flow-error-handling-template.json` as the base. The Catch scope's
-`workflowReferenceName` stays exactly as-is (`5ae8b3c2-f6d7-4891-b023-456789abcdef`) — this
-points to the helper in the other solution and works by GUID lookup at runtime.
+Use `references/flow-error-handling-template.json` as the base. Substitute the discovered
+helper GUIDs into the `workflowReferenceName` fields in the Catch and Finally scopes:
+
+```powershell
+$flowJson = $flowJson.Replace(
+    '"workflowReferenceName": "HELPER_GET_ERROR_GUID"',
+    "`"workflowReferenceName`": `"$guidGetError`""
+)
+$flowJson = $flowJson.Replace(
+    '"workflowReferenceName": "HELPER_SEND_NOTIF_GUID"',
+    "`"workflowReferenceName`": `"$guidSendNotif`""
+)
+```
 
 Generate fresh `operationMetadataId` values for all actions in each new flow to avoid collisions:
 ```powershell
 $ids = 1..10 | ForEach-Object { [System.Guid]::NewGuid().ToString() }
 ```
 
-### 2C-6: Build zip and import
+### 2C-7: Build zip and import
 
 ```powershell
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
@@ -361,7 +541,6 @@ New-Item -ItemType Directory -Force -Path $wfDir | Out-Null
 [System.IO.File]::WriteAllText("$dir\[Content_Types].xml", $contentTypesXml, $utf8NoBom)
 [System.IO.File]::WriteAllText("$dir\solution.xml", $solutionXml, $utf8NoBom)
 [System.IO.File]::WriteAllText("$dir\customizations.xml", $customizationsXml, $utf8NoBom)
-# Write one JSON file per new business flow
 [System.IO.File]::WriteAllText("$wfDir\<FileName>.json", $flowJson, $utf8NoBom)
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -372,9 +551,10 @@ if (Test-Path $zipPath) { [System.IO.File]::Delete($zipPath) }
 pac solution import --path $zipPath --activate-plugins --force-overwrite
 ```
 
-### 2C-7: Post-import wiring note
+### 2C-8: Post-import wiring note
 
-After import, open each new business flow in the designer. If any child flow action shows as broken, re-select the helper from the dropdown — Power Automate will re-link it to the installed helper from the other solution:
+After import, open each new business flow in the designer. If any child flow action shows as broken,
+re-select the helper from the dropdown — Power Automate will re-link it to the installed helper:
 - Catch scope → "Run a child flow - Get Error Message" → re-select **Helper - Get Error Message**
 - Finally scope (false branch) → "Run a child flow - Send Notification" → re-select **Helper - Send Notification**
 
@@ -384,29 +564,56 @@ After import, open each new business flow in the designer. If any child flow act
 
 After a successful import, remind the user:
 
-1. **Wire up child flow references**: Open "Error Handling Template" (or the new flow) in the designer. If either child flow action shows as broken, re-select the helper from the dropdown:
+1. **Wire up child flow references** (if any show as broken): Open the flow(s) in the designer.
+   Re-select from the dropdown for any broken child flow actions:
    - Catch scope → "Run a child flow - Get Error Message" → re-select **Helper - Get Error Message**
    - Finally scope (false branch) → "Run a child flow - Send Notification" → re-select **Helper - Send Notification**
 
-2. **Replace the placeholder email action**: In **Helper - Send Notification** → Try scope → Switch → EMAIL case, replace `Compose_-_PLACEHOLDER_Send_Email` with a real connector action:
-   - Office 365 Outlook: Send an Email (V2)
-   - `Subject` = `outputs('Compose_-_Resolved_Subject')`
-   - `Body` = `outputs('Compose_-_Email_HTML')`
-   - `Importance` = `outputs('Compose_-_Severity_Config')?['importance']`
-   - For Teams: replace `Compose_-_PLACEHOLDER_Post_to_Teams` with "Post adaptive card in a chat or channel", card = `outputs('Compose_-_Teams_Adaptive_Card')`
+2. **Link connection references** (Mode A, when connectors were wired in Q6):
+   - Power Automate's import UI should prompt for connection references automatically.
+   - If it didn't, go to the solution → **Connection References** → link each reference to a real
+     connection (the user may need to create a new Office 365 Outlook or Teams connection first).
+   - Connection references to link: `{{PUBLISHER_PREFIX}}_office365_errorhandling` (Office 365 Outlook)
+     and/or `{{PUBLISHER_PREFIX}}_teams_errorhandling` (Microsoft Teams), depending on Q6 choice.
 
-3. **Add business logic**: In the flow's Try scope, replace `Placeholder_-_Add_your_business_logic_here` with real actions.
+3. **Verify connector actions** (if connectors were wired):
+   - Open **Helper - Send Notification** → Try → Switch → EMAIL case.
+     Confirm `Send_an_email_V2` shows the correct `To` address, subject, body, and importance.
+   - Open the TEAMS case. Confirm `Post_adaptive_card_in_a_chat_or_channel` shows the correct
+     Group ID and Channel ID. The Teams connector parameters (`body/recipient/groupId` etc.) may
+     need adjustment if the connector version in your environment differs — verify by exporting an
+     existing working Teams flow and comparing the parameter names.
+
+4. **Add business logic**: In the template flow's Try scope, replace
+   `Placeholder_-_Add_your_business_logic_here` with real actions.
+
+5. **Save generated GUIDs**: If the user will create cross-solution (Mode C) flows later,
+   remind them to save the GUIDs printed during Step 2A. They can always re-discover them
+   by re-running Mode C Step 2C-1 (exporting and parsing the helper solution).
 
 ---
 
 ## Critical rules
 
+- **Always generate fresh GUIDs** with `[System.Guid]::NewGuid()` for each new deployment.
+  Never reuse GUIDs from a previous deployment — if a flow was deleted, its GUID may still be
+  orphaned in the environment and cause import conflicts.
 - **Always use UTF-8 without BOM**: `New-Object System.Text.UTF8Encoding $false`. Using `[System.Text.Encoding]::UTF8` adds a BOM that silently breaks `pac solution import`.
-- **GUIDs are stable**: Never change the helper flow GUIDs — re-importing with `--force-overwrite` updates rather than duplicates.
+- **`<RootComponent id="...">` GUIDs must be lowercase** in solution.xml. Uppercase GUIDs cause a false "component is not declared as a root component" import error even though the GUID appears correct visually.
 - **`x-ms-dynamically-added: true`** is required on every trigger input property or the designer won't show inputs.
 - **Dropdown inputs**: Use `"x-ms-content-hint": "DROP_DOWN"` + `"enum": [...]` for option sets.
-- **`<RootComponent id="...">` GUIDs must be lowercase** in solution.xml. Uppercase GUIDs cause a false "component is not declared as a root component" import error even though the GUID appears correct visually.
 - **HTTP 4xx responses are not extractable by the XPath helper.** When an HTTP action receives a 4xx/5xx HTTP response, Power Automate stores the failure as `{"code":"NotFound","outputs":{"statusCode":404,"body":{...}}}` — there is no `error.message` field, so the helper's XPath (`//error/message/text()` and `//message/text()`) finds nothing. The helper only works on **network-level failures** (DNS errors, connection refused, timeouts) which produce `{"error":{"message":"No such host is known..."}}`. If you need to demonstrate the error handler with an HTTP failure, use an **invalid hostname** (e.g. `https://api.hostname-that-does-not-exist.com/...`) rather than a bad path or invalid query parameter.
+- **Teams connector parameters**: The `Post adaptive card in a chat or channel` action uses
+  operationId `PostCardToConversation` with parameters `poster` (`Flow bot`), `location` (`Channel`),
+  `body/recipient/groupId`, `body/recipient/channelId`, and `body/messageBody` — the adaptive card
+  JSON passed **as a string** (`string(outputs('Compose_-_Teams_Adaptive_Card'))`). Connection
+  reference entries in the flow JSON use `"runtimeSource": "embedded"`. Verified against the
+  Microsoft Teams connector reference (learn.microsoft.com/connectors/teams) and a real solution
+  export; do not use the deprecated `PostChannelAdaptiveCard`/`PostAdaptiveCardRequest` shape.
+- **Connection reference logical names must be unique per publisher** — the pattern
+  `{prefix}_office365_errorhandling` and `{prefix}_teams_errorhandling` is intentional. If the
+  environment already has connection references with these names (from a previous deployment), the
+  import will reuse them, which is correct behaviour.
 
 ### Respond to a PowerApp or flow — exact required format
 

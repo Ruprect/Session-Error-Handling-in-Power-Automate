@@ -34,7 +34,7 @@ Configure these environment variables after importing the solution:
 | Testing API Endpoint Invalid | `mni_TestingAPIEndpointInvalid` | Invalid API endpoint URL to intentionally trigger errors for demonstration |
 
 **Default Values:**
-- `mni_ErrorHandlerEmail`: mni@abakion.com (update to your email)
+- `mni_ErrorHandlerEmail`: set this to your own email address after import
 
 ### Connection References
 

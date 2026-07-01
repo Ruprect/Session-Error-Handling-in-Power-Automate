@@ -53,7 +53,7 @@
               "type": "Query",
               "inputs": {
                 "from": "@body('Filter_array_-_Remove_null_values')",
-                "where": "@or(equals(item()['status'], 'Failed'), and(equals(item()['status'], 'Failed'), equals(item()?['error/message'], null)))"
+                "where": "@equals(item()?['status'], 'Failed')"
               },
               "runAfter": { "Filter_array_-_Remove_null_values": ["Succeeded"] },
               "metadata": { "operationMetadataId": "b1b1b1b1-0001-0001-0001-000000000012" }
@@ -79,7 +79,7 @@
             "Select_-_Get_Error_Messages": {
               "type": "Select",
               "inputs": {
-                "from": "@union(coalesce(xpath(outputs('Compose_-_Convert_to_XML'), '//error/message[not(preceding-sibling::message)]/text()'), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()'), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()')), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()'), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()'))",
+                "from": "@union(coalesce(xpath(outputs('Compose_-_Convert_to_XML'), '//error/message[not(preceding-sibling::message)]/text()'), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()')), xpath(outputs('Compose_-_Convert_to_XML'), '//message[not(preceding-sibling::message)]/text()'))",
                 "select": "@item()"
               },
               "runAfter": { "Compose_-_Get_error_message_using_XPath": ["Succeeded"] },
