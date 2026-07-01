@@ -4,7 +4,9 @@ description: >
   Use this skill whenever the user wants to set up Power Automate error handling flows, create a
   Try-Catch-Finally pattern in Power Automate, deploy the ErrorHandling solution, add new flows
   to an existing Power Automate solution, create a new solution that references shared helper flows
-  from another solution, or scaffold error handling helpers. Triggers on phrases like "set up error
+  from another solution, or scaffold error handling helpers, or add error handling to EXISTING flows
+  ("add error handling to existing flows", "retrofit error handling", "wrap my
+  flows in try-catch", "add try-catch to flows in a solution"). Triggers on phrases like "set up error
   handling", "create the helper flows", "add a flow to the solution", "new solution referencing
   helpers", "cross-solution", "reference flows from another solution", "deploy the solution",
   "rebuild the zip", or anything involving the Power Automate error handling pattern.
@@ -44,7 +46,8 @@ Ask the user these questions **one at a time** (stop and wait for each answer be
 > "Do you want to:
 > (A) Fresh setup — create the full solution with all helper flows from scratch
 > (B) Add flow(s) — add a new Error Handling Template flow to an existing solution
-> (C) New solution, shared helpers — create a brand-new solution whose flows call the helper flows that live in a different solution"
+> (C) New solution, shared helpers — create a brand-new solution whose flows call the helper flows that live in a different solution
+> (D) Retrofit — add Try-Catch-Finally error handling to existing flows in an existing solution"
 
 **Q2 — Publisher prefix** (all modes):
 > "What is the publisher unique name and prefix? (default from env file: publisher=`<PUBLISHER_UNIQUE_NAME>`, prefix=`<PUBLISHER_PREFIX>`)"
