@@ -32,9 +32,15 @@ helper flows in the `ErrorHandling` solution via cross-solution GUID references.
 
 1. Q1 gains option **D**: "Retrofit — add Try-Catch-Finally error handling to existing
    flows in an existing solution."
-2. Reused questions: Q2 (publisher prefix), Q3 (solution pick, Mode B style), a
-   Q4b-style helper-solution question (default `ErrorHandling`), Q5 (auth check).
-   Q6–Q8 are **not** asked — helpers are already deployed with their connectors.
+2. Reused questions: Q2 (publisher prefix), a Q4b-style helper-solution question
+   (default `ErrorHandling`), Q5 (auth check). Q6–Q8 are **not** asked — helpers
+   are already deployed with their connectors.
+   **Solution pick (Mode D variant of Q3):** unlike Mode B's prefix filter, Mode D
+   lists ALL non-Microsoft solutions (`pac solution list` with Microsoft-published /
+   system solutions filtered out — e.g. unique names starting `msdyn`/`msft` or
+   Microsoft publishers) and asks the user to pick the target. Retrofit targets
+   often don't share the user's publisher prefix, so prefix filtering is too narrow
+   here; the exact filter expression is an implementation-plan detail.
 3. Export the target solution (reuse Step 2B-1/2B-2 verbatim). The export zip is the
    rollback backup; restore = re-import it.
 4. Discover helper GUIDs from the helper solution (reuse Step 2C-1 verbatim). Confirm
