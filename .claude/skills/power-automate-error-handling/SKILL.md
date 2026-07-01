@@ -79,12 +79,19 @@ Ask the user these questions **one at a time** (stop and wait for each answer be
   - Run `pac solution list`, filter by publisher prefix, show results.
     Ask: "Which solution contains the helper flows? (default: `ErrorHandling`)"
 
+- **Mode D**: Run `pac solution list` and show ALL solutions EXCEPT Microsoft/system
+  ones — exclude unique names starting with `msdyn`, `msft`, `Microsoft`, `Default`,
+  `Active`, or `Basic`, and canvas-app auto-solutions (`Cr` + 5 hex chars). Do NOT
+  filter by publisher prefix: retrofit targets often belong to other publishers.
+  Show the unfiltered list if the user asks.
+  Then ask: "Which solution contains the flows to retrofit?"
+
 **Q4 — Flow name(s)** (modes B and C):
 > "What is the display name of the new flow? (e.g. `My Business Process`)"
 >
 > After each name ask: "Add another flow, or done?"
 
-**Q4b — Helper solution** (Mode B only):
+**Q4b — Helper solution** (Modes B and D; for Mode D the default is `ErrorHandling`):
 > "Which solution contains the helper flows (`Helper - Get Error Message`,
 > `Helper - Send Notification`) that the new flow should call? (default: the same solution
 > you are adding the flow to; otherwise typically `ErrorHandling`)"
