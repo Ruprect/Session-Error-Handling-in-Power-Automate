@@ -75,3 +75,15 @@ Then diff original vs transformed to confirm no pre-existing action's name or
 
 Rename this file `DONE-`. Nothing to commit (all work is in `$env:TEMP`). Note the
 discovered helper GUIDs at the bottom of this file for TODO 07's records.
+
+---
+
+## Execution notes (2026-07-02)
+
+- Fixture verified: `Get Mock Data for Canvas App` (68d65bb2-9575-f111-ab0d-70a8a532f695), Draft.
+- Discovered helper GUIDs (match current ErrorHandling v1.0.5.0 deployment):
+  - Helper - Get Error Message : 9563b2ec-9366-4bce-b554-0deff90939a9
+  - Helper - Send Notification : 4edf92ac-20bb-4868-8658-bb07a19bbbb2
+- Skip rules: no flags (no Try/Catch/Finally names, no InitializeVariable actions).
+- Transform + validation: OK. Original action names/metadata and trigger preserved; UTF-8 no BOM confirmed.
+- Working dir: %TEMP%\PA_ErrorHandling\fwoeh_work (backup zip: Flowswithouterrorhandling_export.zip)
