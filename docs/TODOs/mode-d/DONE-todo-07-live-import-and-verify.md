@@ -51,3 +51,13 @@ round-trip, helper GUIDs still wired, original action metadata intact.
 ## On success
 
 Rename this file `DONE-` and note the imported solution version at the bottom.
+
+---
+
+## Execution notes (2026-07-02)
+
+- Solution version bumped 1.0.0.0 -> 1.0.1.0; imported with --force-overwrite: success.
+- Round-trip export re-validated: Try/Catch/Finally intact with correct runAfter arrays,
+  original Select/Respond actions preserved (names, operationMetadataIds, Response body),
+  helper GUIDs wired, flow GUID unchanged.
+- Rollback zip retained: %TEMP%\PA_ErrorHandling\Flowswithouterrorhandling_export.zip
