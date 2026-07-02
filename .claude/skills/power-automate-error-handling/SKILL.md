@@ -613,8 +613,10 @@ Then rezip and import per Step 2B-7.
 
 ### 2D-6: Post-import
 
-Step 3 items 1 (child flow references) and 4 (business logic already exists — skip)
-apply. Verify by exporting the solution again and re-running the validation script
+Step 3 items 1 (child flow references), 2b (run-only users — retrofitted parents
+cannot be SAVED in the designer until the connector-wired helper's run-only
+connections are configured), and 4 (business logic already exists — skip) apply.
+Verify by exporting the solution again and re-running the validation script
 on each retrofitted flow, then test with a forced failure: temporarily add an HTTP
 action inside Try with an invalid hostname (see Critical rules — 4xx responses are
 NOT extractable; use a nonexistent hostname) and confirm the notification arrives.
@@ -636,6 +638,15 @@ After a successful import, remind the user:
      connection (the user may need to create a new Office 365 Outlook or Teams connection first).
    - Connection references to link: `{{PUBLISHER_PREFIX}}_office365_errorhandling` (Office 365 Outlook)
      and/or `{{PUBLISHER_PREFIX}}_teams_errorhandling` (Microsoft Teams), depending on Q6 choice.
+
+2b. **Configure run-only users on Helper - Send Notification** (when connectors are wired):
+   A child flow with connections must declare its own connections for run-only use, or every
+   PARENT flow that calls it fails to save with: *"Update the child flow for action
+   'Run_child_flow_-_Send_Notification' to not use 'run-only user' connections."*
+   Fix: open **Helper - Send Notification**'s details page → **Run only users** → Edit →
+   under "Connections Used" switch each connection from *Provided by run-only user* to
+   **Use this connection** → Save. (Helper - Get Error Message has no connections and
+   never needs this.)
 
 3. **Verify connector actions** (if connectors were wired):
    - Open **Helper - Send Notification** → Try → Switch → EMAIL case.
